@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#0a0008"/>
+<title>🃏 UNO</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+/* ══ RESET & ROOT ══════════════════════════════════════════════════════════ */
+:root {
+  --bg:      #0a0008;
+  --bgcard:  #120010;
+  --text:    #f0e8ff;
+  --muted:   #6a5a7a;
+  --border:  rgba(255,255,255,.1);
+  --radius:  18px;
+  --safe-b:  env(safe-area-inset-bottom, 0px);
+
+  --red:    #ff3b3b;
+  --yellow: #ffd600;
+  --green:  #00c853;
+  --blue:   #2979ff;
+  --wild:   #1a0020;
+
+  --red-glow:    rgba(255,59,59,.5);
+  --yellow-glow: rgba(255,214,0,.5);
+  --green-glow:  rgba(0,200,83,.5);
+  --blue-glow:   rgba(41,121,255,.5);
+}
+*,*::before,*::after { margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent; }
+html,body { height:100%;height:100dvh;overflow:hidden;background:var(--bg);font-family:'Nunito',sans-serif;color:var(--text);user-select:none;-webkit-user-select:none; }
+
+/* ══ LOGIN ══════════════════════════════════════════════════════════════════ */
+#loginScreen {
+  position:fixed;inset:0;z-index:999;
+  background: radial-gradient(ellipse at 50% 40%, #2a0040 0%, #0a0008 70%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;
+  transition:opacity .4s,transform .4s;
+}
+#loginScreen.hide{opacity:0;pointer-events:none;transform:scale(1.05);}
+
+.login-cards {
+  display:flex;gap:-8px;margin-bottom:20px;
+  filter:drop-shadow(0 10px 30px rgba(0,0,0,.6));
+}
+.login-card-preview {
+  width:52px;height:78px;border-radius:10px;border:2px solid rgba(255,255,255,.3);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Fredoka One',cursive;font-size:1.5rem;color:#fff;
+  box-shadow:0 6px 20px rgba(0,0,0,.5);
+  transition:transform .2s;
+}
+.login-card-preview:nth-child(1){background:var(--red);transform:rotate(-12deg) translateX(10px);}
+.login-card-preview:nth-child(2){background:var(--blue);transform:rotate(-4deg);z-index:1;}
+.login-card-preview:nth-child(3){background:var(--green);transform:rotate(4deg);}
+.login-card-preview:nth-child(4){background:var(--yellow);transform:rotate(12deg) translateX(-10px);color:#333;}
+
+.login-title {
+  font-family:'Fredoka One',cursive;
+  font-size:clamp(3rem,14vw,4.5rem);
+  background:linear-gradient(135deg,#ff6b6b,#ffd600,#00e676,#2979ff);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-bottom:4px;letter-spacing:.05em;
+  filter:drop-shadow(0 0 20px rgba(255,214,0,.3));
+}
+.login-sub{color:var(--muted);font-size:.9rem;margin-bottom:32px;text-align:center;}
+
+.login-form{width:100%;max-width:360px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:var(--radius);padding:24px;}
+
+.inp-wrap{position:relative;margin-bottom:14px;}
+.inp-wrap i{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.9rem;pointer-events:none;}
+.inp-wrap input{
+  width:100%;padding:14px 14px 14px 40px;
+  background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.1);
+  border-radius:12px;color:var(--text);font-family:'Nunito';font-size:.98rem;font-weight:700;outline:none;
+  transition:border-color .2s,box-shadow .2s;
+}
+.inp-wrap input:focus{border-color:rgba(255,214,0,.6);box-shadow:0 0 0 3px rgba(255,214,0,.1);}
+.inp-wrap input::placeholder{color:rgba(255,255,255,.2);font-weight:400;}
+
+.btn-join{
+  width:100%;padding:16px;border:none;border-radius:14px;cursor:pointer;
+  background:linear-gradient(135deg,#ff6b6b,#ffd600);
+  font-family:'Fredoka One',cursive;font-size:1.2rem;color:#1a0010;
+  box-shadow:0 6px 24px rgba(255,107,107,.4);transition:all .15s;
+  letter-spacing:.04em;
+}
+.btn-join:active{transform:scale(.96);}
+
+/* ══ APP SHELL ══════════════════════════════════════════════════════════════ */
+#app{display:flex;flex-direction:column;height:100dvh;}
+
+/* ── TOPBAR ── */
+#topbar{
+  flex-shrink:0;height:54px;
+  background:linear-gradient(90deg,#0d000d,#160018,#0d000d);
+  border-bottom:1px solid rgba(255,255,255,.08);
+  display:flex;align-items:center;padding:0 12px;gap:8px;
+  box-shadow:0 2px 20px rgba(0,0,0,.6);z-index:10;
+}
+.topbar-title{font-family:'Fredoka One',cursive;font-size:1.5rem;
+  background:linear-gradient(90deg,#ff6b6b,#ffd600);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  flex:1;}
+.tbadge{
+  padding:4px 10px;border-radius:8px;font-size:.72rem;font-weight:800;
+  display:flex;align-items:center;gap:4px;white-space:nowrap;flex-shrink:0;
+}
+.tbadge-turn{background:rgba(255,214,0,.12);border:1px solid rgba(255,214,0,.3);color:#ffd600;}
+.tbadge-round{background:rgba(41,121,255,.12);border:1px solid rgba(41,121,255,.3);color:#79aaff;}
+.tdot{width:6px;height:6px;border-radius:50%;background:#00e676;animation:pulse 1.2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.5)}}
+
+.ticon{
+  width:36px;height:36px;border-radius:10px;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:.95rem;
+  transition:all .15s;position:relative;flex-shrink:0;
+}
+.ticon:active{transform:scale(.88);}
+.ticon.p{background:rgba(41,121,255,.2);border:1px solid rgba(41,121,255,.4);color:#79aaff;}
+.ticon.c{background:rgba(0,200,83,.15);border:1px solid rgba(0,200,83,.35);color:#00e676;}
+.unread-dot{position:absolute;top:-3px;right:-3px;width:14px;height:14px;border-radius:50%;background:#ff3b3b;font-size:.6rem;font-weight:900;display:flex;align-items:center;justify-content:center;animation:badgePop .2s ease;}
+@keyframes badgePop{from{transform:scale(0)}to{transform:scale(1)}}
+
+/* ── TABLE (middle area) ── */
+#table{
+  flex:1;position:relative;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 40%,#1a0028 0%,#0a0010 60%,#050008 100%);
+}
+#table::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%,rgba(100,0,180,.08) 0%,transparent 70%);
+}
+
+/* Opponents area */
+#opponents{
+  position:absolute;top:0;left:0;right:0;
+  display:flex;flex-wrap:nowrap;gap:8px;
+  padding:10px 12px;overflow-x:auto;scrollbar-width:none;
+  justify-content:center;
+}
+#opponents::-webkit-scrollbar{display:none;}
+
+.opponent-slot{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  flex-shrink:0;min-width:64px;
+}
+.opp-avatar{
+  width:38px;height:38px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:900;font-size:1rem;color:#fff;
+  border:2px solid rgba(255,255,255,.2);
+  box-shadow:0 2px 10px rgba(0,0,0,.5);
+  position:relative;transition:all .2s;
+}
+.opp-avatar.active-turn{
+  border-color:#ffd600;
+  box-shadow:0 0 0 3px rgba(255,214,0,.3),0 4px 14px rgba(255,214,0,.4);
+  animation:avatarPulse 1s ease infinite;
+}
+@keyframes avatarPulse{0%,100%{box-shadow:0 0 0 3px rgba(255,214,0,.3)}50%{box-shadow:0 0 0 6px rgba(255,214,0,.1)}}
+.opp-name{font-size:.68rem;font-weight:800;color:var(--muted);text-align:center;max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.opp-cards{display:flex;gap:2px;}
+.opp-card-back{
+  width:14px;height:22px;border-radius:3px;
+  background:linear-gradient(135deg,#2a0040,#1a0030);
+  border:1px solid rgba(255,255,255,.15);
+  box-shadow:1px 1px 4px rgba(0,0,0,.5);
+}
+.opp-count{
+  font-size:.65rem;font-weight:900;padding:1px 7px;border-radius:6px;
+  background:rgba(255,255,255,.08);color:var(--muted);
+}
+.uno-badge{
+  position:absolute;top:-6px;right:-6px;
+  background:#ff3b3b;color:#fff;font-size:.55rem;font-weight:900;
+  padding:1px 5px;border-radius:6px;border:1px solid rgba(255,255,255,.3);
+  animation:unoBadge .3s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes unoBadge{from{transform:scale(0)}to{transform:scale(1)}}
+
+/* Center play area */
+#playArea{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  display:flex;align-items:center;justify-content:center;gap:20px;
+}
+
+/* Color indicator ring */
+.color-ring{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:180px;height:180px;border-radius:50%;
+  border:3px solid transparent;
+  transition:border-color .4s, box-shadow .4s;
+  pointer-events:none;
+}
+.color-ring.red    {border-color:rgba(255,59,59,.4);box-shadow:0 0 40px rgba(255,59,59,.2);}
+.color-ring.yellow {border-color:rgba(255,214,0,.4);box-shadow:0 0 40px rgba(255,214,0,.2);}
+.color-ring.green  {border-color:rgba(0,200,83,.4);box-shadow:0 0 40px rgba(0,200,83,.2);}
+.color-ring.blue   {border-color:rgba(41,121,255,.4);box-shadow:0 0 40px rgba(41,121,255,.2);}
+
+/* Deck pile */
+.deck-pile{
+  width:64px;height:96px;border-radius:10px;cursor:pointer;
+  background:linear-gradient(135deg,#2a0040,#180025);
+  border:2px solid rgba(255,255,255,.15);
+  box-shadow:4px 6px 0 rgba(0,0,0,.6),0 8px 24px rgba(0,0,0,.7);
+  display:flex;align-items:center;justify-content:center;
+  transition:all .18s;position:relative;
+  font-family:'Fredoka One',cursive;font-size:1.3rem;
+  flex-direction:column;gap:4px;color:rgba(255,255,255,.7);
+}
+.deck-pile::before{
+  content:'';position:absolute;inset:3px;border-radius:7px;
+  border:1.5px solid rgba(255,255,255,.08);
+  background:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,.02) 4px,rgba(255,255,255,.02) 8px);
+}
+.deck-pile:active{transform:scale(.93) translateY(3px);box-shadow:1px 2px 0 rgba(0,0,0,.6);}
+.deck-pile.disabled{opacity:.4;pointer-events:none;}
+#deckCount{font-size:.7rem;font-weight:800;color:rgba(255,255,255,.4);z-index:1;}
+
+/* ══ UNO CARD ══════════════════════════════════════════════════════════════ */
+.uno-card{
+  position:relative;width:64px;height:96px;border-radius:12px;
+  cursor:pointer;transition:transform .15s ease,filter .15s,box-shadow .15s;
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  transform-style:preserve-3d;
+}
+.uno-card:active{transform:scale(.93)!important;}
+
+.uno-card.playable{animation:cardGlow 2s ease infinite;}
+@keyframes cardGlow{
+  0%,100%{filter:drop-shadow(0 0 6px currentColor);}
+  50%{filter:drop-shadow(0 0 16px currentColor)drop-shadow(0 0 6px currentColor);}
+}
+.uno-card.selected{
+  transform:translateY(-20px) scale(1.12)!important;
+  z-index:20;
+}
+.uno-card.unplayable{opacity:.35;cursor:default;}
+.uno-card.unplayable:active{transform:none!important;}
+
+/* Card face */
+.card-face{
+  width:100%;height:100%;border-radius:11px;
+  border:2.5px solid rgba(255,255,255,.8);
+  position:relative;overflow:hidden;
+  box-shadow:3px 5px 0 rgba(0,0,0,.7),0 8px 20px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.4);
+  display:flex;align-items:center;justify-content:center;
+}
+/* colored backgrounds */
+.card-red    .card-face{background:linear-gradient(145deg,#ff5252,#c62828);}
+.card-yellow .card-face{background:linear-gradient(145deg,#ffee58,#f9a825);}
+.card-green  .card-face{background:linear-gradient(145deg,#69f0ae,#00897b);}
+.card-blue   .card-face{background:linear-gradient(145deg,#64b5f6,#1565c0);}
+.card-wild   .card-face{background:linear-gradient(145deg,#1a0030,#0d0018);}
+
+/* Oval inner */
+.card-face::before{
+  content:'';position:absolute;
+  width:70%;height:85%;border-radius:50%;
+  background:rgba(255,255,255,.12);
+  border:1.5px solid rgba(255,255,255,.15);
+  transform:rotate(-30deg);
+}
+
+/* Corner labels */
+.card-corner{
+  position:absolute;font-family:'Fredoka One',cursive;line-height:1;
+  display:flex;flex-direction:column;align-items:center;
+}
+.card-corner.tl{top:5px;left:6px;font-size:.82rem;}
+.card-corner.br{bottom:5px;right:6px;font-size:.82rem;transform:rotate(180deg);}
+.card-red .card-corner,.card-yellow .card-corner,.card-green .card-corner,.card-blue .card-corner{color:rgba(255,255,255,.95);}
+.card-yellow .card-corner{color:rgba(50,30,0,.9);}
+
+/* Center symbol */
+.card-center{
+  font-family:'Fredoka One',cursive;
+  font-size:1.8rem;color:#fff;z-index:1;
+  text-shadow:0 2px 8px rgba(0,0,0,.5);
+  line-height:1;
+}
+.card-yellow .card-center{color:#3a2000;}
+.card-center.big{font-size:1.3rem;}
+
+/* Wild rainbow */
+.card-wild .card-face::after{
+  content:'';position:absolute;inset:0;
+  background:conic-gradient(#ff3b3b 0deg 90deg,#ffd600 90deg 180deg,#00c853 180deg 270deg,#2979ff 270deg 360deg);
+  opacity:.25;border-radius:9px;
+}
+.card-wild .card-center{font-size:.95rem;color:#fff;text-shadow:0 0 10px rgba(255,255,255,.8);}
+
+/* Discard pile */
+#discardPile{
+  width:64px;height:96px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;
+}
+#discardPile .uno-card{cursor:default;pointer-events:none;}
+
+/* ── HAND STRIP ── */
+#handStrip{
+  flex-shrink:0;
+  background:linear-gradient(0deg,#080010,#100018);
+  border-top:1px solid rgba(255,255,255,.08);
+  padding:10px 12px calc(12px + var(--safe-b));
+  display:flex;align-items:flex-end;gap:0;
+  overflow-x:auto;overflow-y:visible;
+  -webkit-overflow-scrolling:touch;
+  min-height:130px;scrollbar-width:none;
+  position:relative;
+}
+#handStrip::-webkit-scrollbar{display:none;}
+#handStrip.my-turn{
+  box-shadow:0 -4px 30px rgba(255,214,0,.15),inset 0 0 40px rgba(255,214,0,.04);
+}
+#handTiles{
+  display:flex;align-items:flex-end;flex-shrink:0;
+  padding:0 60px 0 12px;
+}
+/* fan overlap */
+#handTiles .uno-card{margin-left:-18px;}
+#handTiles .uno-card:first-child{margin-left:0;}
+
+/* UNO button */
+#unoBtn{
+  position:absolute;right:14px;bottom:calc(14px + var(--safe-b));
+  width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#ff3b3b,#c40000);
+  font-family:'Fredoka One',cursive;font-size:.9rem;color:#fff;
+  box-shadow:0 4px 16px rgba(255,59,59,.5);
+  transition:all .15s;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+#unoBtn:active{transform:scale(.9);}
+#unoBtn.pulse{animation:unoPulse .4s ease;}
+@keyframes unoPulse{0%{transform:scale(1)}50%{transform:scale(1.2)}100%{transform:scale(1)}}
+
+/* ══ BOTTOM SHEETS ══════════════════════════════════════════════════════════ */
+.overlay{
+  position:fixed;inset:0;z-index:500;
+  background:rgba(0,0,0,.7);backdrop-filter:blur(5px);
+  display:flex;align-items:flex-end;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .25s;
+}
+.overlay.show{opacity:1;pointer-events:all;}
+.sheet{
+  width:100%;max-width:480px;
+  background:linear-gradient(160deg,#120018,#08000f);
+  border-radius:22px 22px 0 0;
+  border:1px solid rgba(255,255,255,.08);border-bottom:none;
+  padding:0 0 calc(20px + var(--safe-b));
+  transform:translateY(100%);
+  transition:transform .3s cubic-bezier(.34,.7,.46,1);
+  max-height:88dvh;overflow-y:auto;
+}
+.overlay.show .sheet{transform:translateY(0);}
+.sheet-handle{width:38px;height:4px;border-radius:2px;background:rgba(255,255,255,.12);margin:12px auto 0;}
+.sheet-header{display:flex;align-items:center;gap:10px;padding:14px 18px 12px;border-bottom:1px solid rgba(255,255,255,.06);}
+.sheet-header h3{font-size:1rem;font-weight:800;flex:1;}
+.sheet-close{width:28px;height:28px;border-radius:8px;border:none;cursor:pointer;background:rgba(255,255,255,.06);color:var(--muted);font-size:.85rem;display:flex;align-items:center;justify-content:center;}
+
+/* Color chooser */
+.color-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px 18px;}
+.color-opt{
+  padding:20px 16px;border-radius:16px;border:none;cursor:pointer;
+  display:flex;align-items:center;gap:12px;
+  font-family:'Fredoka One',cursive;font-size:1.1rem;
+  transition:all .15s;
+}
+.color-opt:active{transform:scale(.96);}
+.color-opt.red   {background:rgba(255,59,59,.15);border:2px solid rgba(255,59,59,.5);color:#ff7070;}
+.color-opt.yellow{background:rgba(255,214,0,.12);border:2px solid rgba(255,214,0,.4);color:#ffd600;}
+.color-opt.green {background:rgba(0,200,83,.12);border:2px solid rgba(0,200,83,.4);color:#00e676;}
+.color-opt.blue  {background:rgba(41,121,255,.12);border:2px solid rgba(41,121,255,.4);color:#79aaff;}
+.color-dot{width:22px;height:22px;border-radius:50%;}
+.color-opt.red    .color-dot{background:var(--red);}
+.color-opt.yellow .color-dot{background:var(--yellow);}
+.color-opt.green  .color-dot{background:var(--green);}
+.color-opt.blue   .color-dot{background:var(--blue);}
+
+/* Players sheet */
+.p-item{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(255,255,255,.04);}
+.p-item.active-p{background:rgba(255,214,0,.06);}
+.p-item.me-p{background:rgba(41,121,255,.05);}
+.p-av{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1rem;color:#fff;flex-shrink:0;box-shadow:0 2px 10px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.12);}
+.p-info{flex:1;min-width:0;}
+.p-name{font-weight:800;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.p-sub{font-size:.74rem;color:var(--muted);}
+.p-pill{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:3px 10px;font-size:.78rem;font-weight:800;display:flex;align-items:center;gap:5px;}
+
+/* Chat sheet */
+#chatMessages{max-height:45vh;overflow-y:auto;padding:10px 16px;display:flex;flex-direction:column;gap:6px;scrollbar-width:thin;scrollbar-color:#1a001a transparent;}
+#chatMessages::-webkit-scrollbar{width:3px;}
+#chatMessages::-webkit-scrollbar-thumb{background:#1a001a;border-radius:2px;}
+.cmsg{display:flex;gap:8px;animation:msgIn .2s ease;}
+@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.cmsg.sys{justify-content:center;padding:2px 0;}
+.sys-txt{font-size:.74rem;color:#4a2a5a;padding:3px 12px;background:rgba(255,255,255,.02);border-radius:10px;}
+.cmsg.me{flex-direction:row-reverse;}
+.cmsg-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:900;flex-shrink:0;margin-top:2px;}
+.cmsg-bub{max-width:80%;padding:8px 12px;border-radius:14px 14px 14px 4px;font-size:.86rem;line-height:1.4;background:rgba(255,255,255,.06);}
+.cmsg.me .cmsg-bub{border-radius:14px 14px 4px 14px;background:rgba(255,214,0,.1);}
+.cmsg-name{font-size:.68rem;font-weight:800;margin-bottom:2px;opacity:.65;}
+.chat-row{display:flex;gap:8px;padding:10px 16px 0;}
+.chat-row input{flex:1;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:11px 14px;color:var(--text);font-family:'Nunito';font-size:.95rem;outline:none;transition:border-color .2s;}
+.chat-row input:focus{border-color:rgba(255,214,0,.4);}
+.chat-send{width:42px;height:42px;border-radius:12px;border:none;cursor:pointer;background:rgba(255,214,0,.15);border:1px solid rgba(255,214,0,.3);color:#ffd600;font-size:.95rem;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.chat-send:active{transform:scale(.9);}
+
+/* ══ WIN OVERLAY ════════════════════════════════════════════════════════════ */
+#winOverlay{
+  position:fixed;inset:0;z-index:800;
+  background:rgba(0,0,0,.88);backdrop-filter:blur(10px);
+  display:none;align-items:center;justify-content:center;padding:24px;
+}
+#winOverlay.show{display:flex;}
+.win-box{
+  background:linear-gradient(145deg,#1a0028,#0a000f);
+  border:1.5px solid rgba(255,214,0,.4);border-radius:24px;
+  padding:36px 28px;text-align:center;width:100%;max-width:340px;
+  box-shadow:0 0 80px rgba(255,214,0,.2);
+  animation:winPop .45s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes winPop{from{transform:scale(.4);opacity:0}to{transform:none;opacity:1}}
+.win-emoji{font-size:3.5rem;animation:winSpin 3s ease infinite;display:block;margin-bottom:10px;}
+@keyframes winSpin{0%,100%{transform:rotate(-8deg) scale(1)}50%{transform:rotate(8deg) scale(1.1)}}
+.win-box h2{font-family:'Fredoka One',cursive;font-size:1.8rem;
+  background:linear-gradient(135deg,#ffd600,#ff6b6b);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-bottom:6px;}
+.win-box p{color:var(--muted);font-size:.9rem;margin-bottom:18px;}
+.win-scores{margin:0 0 18px;}
+.wrow{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:10px;margin-bottom:4px;background:rgba(255,255,255,.04);}
+.wrow .wname{font-weight:700;font-size:.92rem;}
+.wrow .wval{color:#ffd600;font-weight:900;font-size:1rem;}
+.win-acts{display:flex;gap:10px;}
+.btn-win{flex:1;padding:14px;border:none;border-radius:14px;font-family:'Nunito';font-weight:800;font-size:.95rem;cursor:pointer;transition:all .15s;}
+.btn-win:active{transform:scale(.96);}
+.btn-win.primary{background:linear-gradient(135deg,#ffd600,#ff6b6b);color:#0a0008;box-shadow:0 4px 16px rgba(255,214,0,.3);}
+.btn-win.secondary{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:var(--text);}
+
+/* ══ NOTIFICATIONS ══════════════════════════════════════════════════════════ */
+#notifs{
+  position:fixed;top:62px;left:50%;transform:translateX(-50%);
+  z-index:700;width:calc(100% - 24px);max-width:360px;
+  display:flex;flex-direction:column;gap:5px;pointer-events:none;align-items:center;
+}
+.notif{
+  background:rgba(10,0,16,.97);border:1px solid rgba(255,255,255,.15);
+  border-radius:12px;padding:9px 16px;font-size:.83rem;font-weight:700;
+  box-shadow:0 4px 20px rgba(0,0,0,.7);text-align:center;width:100%;
+  animation:nIn .25s ease,nOut .25s ease 2.5s forwards;
+}
+@keyframes nIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+@keyframes nOut{to{opacity:0;transform:translateY(-10px)}}
+.notif.success{border-color:rgba(0,200,83,.4);}
+.notif.warn{border-color:rgba(255,152,0,.4);}
+.notif.error{border-color:rgba(255,59,59,.4);}
+.notif.uno{border-color:rgba(255,59,59,.6);background:rgba(80,0,0,.97);font-size:1rem;animation:nIn .25s ease,unoBlink .4s ease .25s 2,nOut .25s ease 2.5s forwards;}
+@keyframes unoBlink{0%,100%{background:rgba(80,0,0,.97)}50%{background:rgba(200,0,0,.97)}}
+
+/* ══ EFFECTS ════════════════════════════════════════════════════════════════ */
+@keyframes cardFly{
+  from{transform:scale(0) rotate(-20deg);opacity:0}
+  65%{transform:scale(1.18) rotate(4deg);opacity:1}
+  to{transform:scale(1) rotate(0);opacity:1}
+}
+@keyframes cardPlay{
+  0%{transform:translateY(0) scale(1)}
+  40%{transform:translateY(-30px) scale(1.1) rotate(5deg)}
+  100%{transform:translateY(0) scale(1)}
+}
+.card-play-anim{animation:cardPlay .35s ease;}
+
+.confetti-piece{position:fixed;width:9px;height:13px;top:-20px;border-radius:2px;pointer-events:none;z-index:900;animation:cfFall linear forwards;}
+@keyframes cfFall{to{transform:translateY(110vh) rotate(720deg);opacity:0}}
+
+/* Start btn */
+#btnStart{
+  background:rgba(0,200,83,.2);border:1px solid rgba(0,200,83,.4);color:#00e676;
+}
+
+/* Draw stack indicator */
+#drawStackBadge{
+  position:absolute;top:-10px;left:50%;transform:translateX(-50%);
+  background:#ff3b3b;color:#fff;font-family:'Fredoka One',cursive;
+  font-size:.75rem;padding:2px 8px;border-radius:8px;
+  white-space:nowrap;display:none;
+  box-shadow:0 2px 8px rgba(255,59,59,.6);
+}
+#drawStackBadge.show{display:block;animation:nIn .2s ease;}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-cards">
+    <div class="login-card-preview">7</div>
+    <div class="login-card-preview">↺</div>
+    <div class="login-card-preview">+2</div>
+    <div class="login-card-preview">⊘</div>
+  </div>
+  <div class="login-title">UNO</div>
+  <div class="login-sub">Gerçek zamanlı • Çok oyunculu • Mobil</div>
+  <div class="login-form">
+    <div class="inp-wrap">
+      <i class="fas fa-user"></i>
+      <input id="nameInput" type="text" placeholder="Adınız..." maxlength="20" autocomplete="off" autocorrect="off"/>
+    </div>
+    <div class="inp-wrap">
+      <i class="fas fa-door-open"></i>
+      <input id="roomInput" type="text" placeholder="Oda adı (örn: oda1)" maxlength="20" autocomplete="off" value="oda1"/>
+    </div>
+    <button class="btn-join" onclick="joinGame()">
+      <i class="fas fa-play"></i> Oyuna Gir
+    </button>
+  </div>
+</div>
+
+<!-- PLAYERS SHEET -->
+<div class="overlay" id="playersOverlay" onclick="closeSheet('playersOverlay')">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <i class="fas fa-users" style="color:#ffd600"></i>
+      <h3>Oyuncular & Skorlar</h3>
+      <button class="sheet-close" onclick="closeSheet('playersOverlay')"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div id="playersContainer"></div>
+  </div>
+</div>
+
+<!-- CHAT SHEET -->
+<div class="overlay" id="chatOverlay" onclick="closeSheet('chatOverlay')">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <i class="fas fa-comments" style="color:#00e676"></i>
+      <h3>Sohbet</h3>
+      <button class="sheet-close" onclick="closeSheet('chatOverlay')"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div id="chatMessages"></div>
+    <div class="chat-row">
+      <input id="chatMsg" type="text" placeholder="Mesaj yaz..." maxlength="200" autocomplete="off"/>
+      <button class="chat-send" onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
+    </div>
+  </div>
+</div>
+
+<!-- COLOR CHOOSER SHEET -->
+<div class="overlay" id="colorOverlay">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <i class="fas fa-palette" style="color:#ffd600"></i>
+      <h3>Renk Seç</h3>
+    </div>
+    <div class="color-grid">
+      <button class="color-opt red"    onclick="chooseColor('red')">   <div class="color-dot"></div> Kırmızı</button>
+      <button class="color-opt yellow" onclick="chooseColor('yellow')"><div class="color-dot"></div> Sarı</button>
+      <button class="color-opt green"  onclick="chooseColor('green')"> <div class="color-dot"></div> Yeşil</button>
+      <button class="color-opt blue"   onclick="chooseColor('blue')">  <div class="color-dot"></div> Mavi</button>
+    </div>
+  </div>
+</div>
+
+<!-- WIN OVERLAY -->
+<div id="winOverlay">
+  <div class="win-box">
+    <span class="win-emoji">🏆</span>
+    <h2>Oyun Bitti!</h2>
+    <p id="winMsg">Tebrikler!</p>
+    <div class="win-scores" id="winScores"></div>
+    <div class="win-acts">
+      <button class="btn-win primary" onclick="newRound()"><i class="fas fa-redo"></i> Yeni Tur</button>
+      <button class="btn-win secondary" onclick="document.getElementById('winOverlay').classList.remove('show')">Kapat</button>
+    </div>
+  </div>
+</div>
+
+<!-- NOTIFICATIONS -->
+<div id="notifs"></div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- TOPBAR -->
+  <div id="topbar">
+    <div class="topbar-title">UNO</div>
+    <div class="tbadge tbadge-round" id="roundBadge"><i class="fas fa-layer-group"></i> T1</div>
+    <div class="tbadge tbadge-turn"><div class="tdot"></div><span id="turnName">—</span></div>
+    <button class="ticon" id="btnStart" onclick="startGame()" title="Başlat">
+      <i class="fas fa-play"></i>
+    </button>
+    <button class="ticon p" onclick="openSheet('playersOverlay')" title="Oyuncular">
+      <i class="fas fa-users"></i>
+    </button>
+    <button class="ticon c" id="chatBtn" onclick="openChat()" title="Chat">
+      <i class="fas fa-comments"></i>
+    </button>
+  </div>
+
+  <!-- TABLE -->
+  <div id="table">
+    <div class="color-ring" id="colorRing"></div>
+
+    <!-- Opponents -->
+    <div id="opponents"></div>
+
+    <!-- Center play area -->
+    <div id="playArea">
+      <!-- Deck -->
+      <div class="deck-pile" id="deckPile" onclick="drawCard()">
+        <div id="drawStackBadge"></div>
+        <i class="fas fa-layer-group" style="font-size:1.4rem;z-index:1;"></i>
+        <div id="deckCount">—</div>
+      </div>
+      <!-- Discard -->
+      <div id="discardPile">
+        <div style="width:64px;height:96px;border-radius:12px;background:rgba(255,255,255,.05);border:2px dashed rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.2);font-size:.8rem;" id="discardEmpty">Kart Yok</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HAND -->
+  <div id="handStrip">
+    <div id="handTiles"></div>
+    <button id="unoBtn" onclick="callUno()">UNO!</button>
+  </div>
+
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════════════════════════════ */
+let socket, myId, myName;
+let myHand = [], roomState = null;
+let selectedCardId = null, pendingWildId = null;
+let unread = 0, chatOpen = false;
+
+const SYMBOLS = {
+  skip:'⊘', reverse:'↺', draw2:'+2', wild:'🌈', draw4:'+4'
+};
+const COLOR_TR = { red:'Kırmızı', yellow:'Sarı', green:'Yeşil', blue:'Mavi', wild:'Joker' };
+
+/* ══════════════════════════════════════════════════════════════════════════
+   JOIN
+══════════════════════════════════════════════════════════════════════════ */
+function joinGame() {
+  const name = document.getElementById('nameInput').value.trim();
+  const room = document.getElementById('roomInput').value.trim();
+  if (!name || !room) { notify('⚠️ İsim ve oda giriniz!','warn'); return; }
+  myName = name;
+  socket = io();
+  bindSocket();
+  socket.emit('join', { name, roomId: room });
+  document.getElementById('loginScreen').classList.add('hide');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SOCKET
+══════════════════════════════════════════════════════════════════════════ */
+function bindSocket() {
+  socket.on('connect', () => { myId = socket.id; });
+
+  socket.on('room_update', s => {
+    roomState = s;
+    renderOpponents(s);
+    renderTopCard(s);
+    renderTopbar(s);
+    renderDeck(s);
+    renderPlayers(s);
+    updateHandState();
+  });
+
+  socket.on('your_hand', hand => {
+    myHand = hand;
+    renderHand();
+    if (roomState) updateHandState();
+  });
+
+  socket.on('game_started', ({ firstPlayer }) => {
+    notify(firstPlayer === myId ? '🟢 İlk sen oynuyorsun!' : '🃏 Oyun başladı!', 'success');
+    document.getElementById('btnStart').style.display = 'none';
+  });
+
+  socket.on('card_played', ({ pid, name, card, activeColor, drawStack }) => {
+    if (pid !== myId) notify(`${name}: ${cardLabel(card)} oynadı`);
+    // Animate discard
+    const discEl = document.querySelector('#discardPile .uno-card');
+    if (discEl) discEl.classList.add('card-play-anim');
+  });
+
+  socket.on('player_drew', ({ pid, name, count }) => {
+    if (pid !== myId) notify(`${name} ${count > 1 ? count + ' kart' : 'kart'} çekti`);
+  });
+
+  socket.on('drew_cards', ({ drawn, playable }) => {
+    if (drawn.length === 1) {
+      notify(playable
+        ? `✅ ${cardLabel(drawn[0])} — Oynanabilir!`
+        : `❌ ${cardLabel(drawn[0])} — Oynanamaz`, playable ? 'success' : 'warn');
+    } else {
+      notify(`😰 ${drawn.length} kart çektin!`, 'warn');
+    }
+  });
+
+  socket.on('uno_alert', ({ pid, name }) => {
+    if (pid !== myId) notify(`🔴 ${name}'nın 1 kartı kaldı!`, 'uno');
+  });
+
+  socket.on('uno_called', ({ pid, name }) => {
+    if (pid !== myId) notify(`🔥 ${name}: UNO!`, 'uno');
+  });
+
+  socket.on('game_over', ({ winner, winnerName, scores }) => {
+    showWin(winner, winnerName, scores);
+    spawnConfetti();
+  });
+
+  socket.on('new_round_started', ({ round }) => {
+    document.getElementById('winOverlay').classList.remove('show');
+    notify(`🔄 ${round}. tur başladı!`, 'success');
+  });
+
+  socket.on('error_msg', msg => notify('❌ ' + msg, 'error'));
+
+  socket.on('chat', data => {
+    appendChat(data);
+    if (!chatOpen && !data.system) { unread++; updateUnread(); }
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ACTIONS
+══════════════════════════════════════════════════════════════════════════ */
+function startGame() { socket.emit('start_game'); }
+function newRound()  { socket.emit('new_round'); }
+function callUno()   {
+  socket.emit('call_uno');
+  document.getElementById('unoBtn').classList.add('pulse');
+  setTimeout(() => document.getElementById('unoBtn').classList.remove('pulse'), 400);
+}
+
+function drawCard() {
+  if (!roomState?.started || roomState.order[roomState.turnIdx] !== myId) return;
+  socket.emit('draw_card');
+}
+
+function selectCard(cardId) {
+  if (!roomState?.started || roomState.order[roomState.turnIdx] !== myId) return;
+  const card = myHand.find(c => c.id === cardId);
+  if (!card) return;
+
+  if (!canPlayCard(card)) { notify('❌ Bu kart şu an oynanamaz', 'error'); return; }
+
+  if (selectedCardId === cardId) { selectedCardId = null; renderHand(); return; }
+  selectedCardId = cardId; renderHand();
+
+  if (card.type === 'wild') {
+    pendingWildId = cardId;
+    openSheet('colorOverlay');
+  } else {
+    socket.emit('play_card', { cardId, chosenColor: null });
+    selectedCardId = null;
+    renderHand();
+  }
+}
+
+function chooseColor(color) {
+  if (!pendingWildId) return;
+  socket.emit('play_card', { cardId: pendingWildId, chosenColor: color });
+  pendingWildId = null; selectedCardId = null;
+  closeSheet('colorOverlay');
+  renderHand();
+}
+
+function canPlayCard(card) {
+  if (!roomState) return false;
+  const { topCard, activeColor, drawStack } = roomState;
+  if (!topCard) return true;
+  if (drawStack > 0) {
+    return (topCard.value === 'draw2' && card.value === 'draw2') ||
+           (topCard.value === 'draw4' && card.value === 'draw4');
+  }
+  if (card.type === 'wild') return true;
+  return card.color === activeColor || card.value === topCard.value;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RENDER
+══════════════════════════════════════════════════════════════════════════ */
+function renderHand() {
+  const c = document.getElementById('handTiles');
+  c.innerHTML = '';
+  const myTurn = roomState?.started && roomState?.order[roomState?.turnIdx] === myId;
+  document.getElementById('handStrip').classList.toggle('my-turn', !!myTurn);
+
+  myHand.forEach((card, i) => {
+    const playable = myTurn && canPlayCard(card);
+    const el = makeCard(card, playable, selectedCardId === card.id);
+    el.style.animation = `cardFly .3s cubic-bezier(.34,1.56,.64,1) both`;
+    el.style.animationDelay = `${i * 0.022}s`;
+    if (playable) el.addEventListener('click', () => selectCard(card.id));
+    c.appendChild(el);
+  });
+}
+
+function updateHandState() { renderHand(); }
+
+function renderTopCard(s) {
+  const dp = document.getElementById('discardPile');
+  dp.innerHTML = '';
+  // Color ring
+  const ring = document.getElementById('colorRing');
+  ring.className = 'color-ring ' + (s.activeColor || '');
+
+  if (!s.topCard) {
+    const emp = document.createElement('div');
+    emp.id = 'discardEmpty';
+    emp.style.cssText = 'width:64px;height:96px;border-radius:12px;background:rgba(255,255,255,.05);border:2px dashed rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.2);font-size:.8rem;';
+    emp.textContent = 'Kart Yok'; dp.appendChild(emp); return;
+  }
+  const cardToShow = {...s.topCard};
+  if (s.topCard.type === 'wild' && s.activeColor) cardToShow.displayColor = s.activeColor;
+  const el = makeCard(cardToShow, false, false);
+  el.style.cursor = 'default';
+  dp.appendChild(el);
+}
+
+function renderDeck(s) {
+  document.getElementById('deckCount').textContent = s.deckCount;
+  const myTurn = s.started && s.order[s.turnIdx] === myId;
+  document.getElementById('deckPile').classList.toggle('disabled', !myTurn || !s.started);
+
+  const badge = document.getElementById('drawStackBadge');
+  if (s.drawStack > 0) {
+    badge.textContent = `+${s.drawStack} çek!`;
+    badge.classList.add('show');
+  } else {
+    badge.classList.remove('show');
+  }
+}
+
+function renderOpponents(s) {
+  const c = document.getElementById('opponents');
+  c.innerHTML = '';
+  s.order.forEach(pid => {
+    if (pid === myId) return;
+    const p = s.players[pid];
+    if (!p) return;
+    const isActive = s.order[s.turnIdx] === pid;
+    const slot = document.createElement('div');
+    slot.className = 'opponent-slot';
+    const handCount = p.handCount;
+    const miniCards = Math.min(handCount, 7);
+    let cardsHtml = '';
+    for (let i = 0; i < miniCards; i++) cardsHtml += '<div class="opp-card-back"></div>';
+    slot.innerHTML = `
+      <div class="opp-avatar${isActive?' active-turn':''}" style="background:${p.color}">
+        ${p.name.charAt(0).toUpperCase()}
+        ${handCount===1?'<div class="uno-badge">UNO</div>':''}
+      </div>
+      <div class="opp-name">${p.name}</div>
+      <div class="opp-cards">${cardsHtml}</div>
+      <div class="opp-count">${handCount} kart</div>`;
+    c.appendChild(slot);
+  });
+}
+
+function renderTopbar(s) {
+  const cur = s.players[s.order[s.turnIdx]];
+  document.getElementById('turnName').textContent = cur
+    ? (s.order[s.turnIdx] === myId ? 'Sen!' : cur.name)
+    : '—';
+  document.getElementById('roundBadge').innerHTML = `<i class="fas fa-layer-group"></i> T${s.round}`;
+}
+
+function renderPlayers(s) {
+  const c = document.getElementById('playersContainer');
+  c.innerHTML = '';
+  const sorted = [...s.order].sort((a,b) => (s.scores[b]||0) - (s.scores[a]||0));
+  sorted.forEach(pid => {
+    const p = s.players[pid]; if (!p) return;
+    const isActive = s.order[s.turnIdx] === pid;
+    const item = document.createElement('div');
+    item.className = 'p-item' + (isActive?' active-p':'') + (pid===myId?' me-p':'');
+    item.innerHTML = `
+      <div class="p-av" style="background:${p.color}">${p.name.charAt(0).toUpperCase()}</div>
+      <div class="p-info">
+        <div class="p-name">${p.name}${pid===myId?' <span style="color:#79aaff;font-size:.72rem">(Sen)</span>':''}</div>
+        <div class="p-sub">Skor: ${s.scores[pid]||0} puan</div>
+      </div>
+      ${isActive?'<i class="fas fa-crown" style="color:#ffd600;font-size:.9rem"></i>':''}
+      <div class="p-pill"><i class="fas fa-layer-group"></i> ${p.handCount}</div>`;
+    c.appendChild(item);
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MAKE CARD
+══════════════════════════════════════════════════════════════════════════ */
+function makeCard(card, playable, selected) {
+  const wrap = document.createElement('div');
+  const colorClass = card.displayColor
+    ? `card-${card.displayColor}`
+    : `card-${card.color}`;
+  wrap.className = `uno-card ${colorClass}`;
+  wrap.dataset.id = card.id;
+  if (playable)  wrap.classList.add('playable');
+  if (selected)  wrap.classList.add('selected');
+  if (!playable && card.id !== undefined) wrap.classList.add('unplayable');
+
+  // Set color for glow
+  const glowColors = { red:'#ff3b3b', yellow:'#ffd600', green:'#00c853', blue:'#2979ff', wild:'#a64dff' };
+  wrap.style.color = glowColors[card.color] || '#a64dff';
+
+  const face = document.createElement('div');
+  face.className = 'card-face';
+
+  // Label (number or symbol)
+  const label = SYMBOLS[card.value] || card.value;
+  const isSpecial = !!SYMBOLS[card.value];
+
+  face.innerHTML = `
+    <div class="card-corner tl">${label}</div>
+    <div class="card-center ${isSpecial?'big':''}">${label}</div>
+    <div class="card-corner br">${label}</div>`;
+
+  wrap.appendChild(face);
+  return wrap;
+}
+
+function cardLabel(card) {
+  const c = COLOR_TR[card.color] || card.color;
+  const v = SYMBOLS[card.value] || card.value;
+  return `${c} ${v}`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CHAT
+══════════════════════════════════════════════════════════════════════════ */
+function openChat() {
+  openSheet('chatOverlay'); chatOpen = true; unread = 0; updateUnread();
+  setTimeout(() => { const m=document.getElementById('chatMessages'); m.scrollTop=m.scrollHeight; },80);
+}
+function sendChat() {
+  const i=document.getElementById('chatMsg'); const msg=i.value.trim();
+  if(!msg) return; socket.emit('chat',{msg}); i.value='';
+}
+function appendChat(data) {
+  const c=document.getElementById('chatMessages');
+  const d=document.createElement('div'); d.className='cmsg';
+  if(data.system){
+    d.classList.add('sys');
+    d.innerHTML=`<span class="sys-txt"><i class="fas fa-circle-info"></i> ${data.msg}</span>`;
+  } else {
+    const me=data.pid===myId; if(me) d.classList.add('me');
+    const init=data.name.charAt(0).toUpperCase();
+    d.innerHTML=`
+      <div class="cmsg-av" style="background:${data.color}">${init}</div>
+      <div class="cmsg-bub">
+        ${!me?`<div class="cmsg-name" style="color:${data.color}">${data.name}</div>`:''}
+        ${data.msg}
+      </div>`;
+  }
+  c.appendChild(d);
+  if(chatOpen) c.scrollTop=c.scrollHeight;
+}
+function updateUnread() {
+  const btn=document.getElementById('chatBtn');
+  let b=btn.querySelector('.unread-dot');
+  if(unread>0){
+    if(!b){b=document.createElement('div');b.className='unread-dot';btn.appendChild(b);}
+    b.textContent=unread>9?'9+':unread;
+  } else { if(b) b.remove(); }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SHEETS
+══════════════════════════════════════════════════════════════════════════ */
+function openSheet(id)  { document.getElementById(id).classList.add('show'); }
+function closeSheet(id) {
+  document.getElementById(id).classList.remove('show');
+  if(id==='chatOverlay'){ chatOpen=false; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   WIN
+══════════════════════════════════════════════════════════════════════════ */
+function showWin(winner, winnerName, scores) {
+  document.getElementById('winOverlay').classList.add('show');
+  document.getElementById('winMsg').textContent =
+    winner===myId ? '🎉 Tebrikler, kazandınız!' : `${winnerName} kazandı!`;
+  const sc=document.getElementById('winScores'); sc.innerHTML='';
+  if(roomState){
+    const sorted=[...roomState.order].sort((a,b)=>(scores[b]||0)-(scores[a]||0));
+    sorted.forEach(pid=>{
+      const p=roomState.players[pid]; if(!p) return;
+      const r=document.createElement('div'); r.className='wrow';
+      r.innerHTML=`<span class="wname">${p.name}${pid===myId?' (Sen)':''}</span><span class="wval">${scores[pid]||0} puan</span>`;
+      sc.appendChild(r);
+    });
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   NOTIFY
+══════════════════════════════════════════════════════════════════════════ */
+function notify(msg, type='info') {
+  const s=document.getElementById('notifs');
+  const el=document.createElement('div'); el.className=`notif ${type}`; el.innerHTML=msg;
+  s.appendChild(el); setTimeout(()=>el.remove(),3000);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CONFETTI
+══════════════════════════════════════════════════════════════════════════ */
+function spawnConfetti(){
+  const cols=['#ff3b3b','#ffd600','#00c853','#2979ff','#ff9800','#e91e63','#9c27b0'];
+  for(let i=0;i<80;i++){
+    const el=document.createElement('div'); el.className='confetti-piece';
+    el.style.left=Math.random()*100+'vw';
+    el.style.background=cols[Math.floor(Math.random()*cols.length)];
+    el.style.animationDuration=(1.8+Math.random()*2.2)+'s';
+    el.style.animationDelay=(Math.random()*.8)+'s';
+    el.style.transform=`rotate(${Math.random()*360}deg)`;
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(),4500);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   KEYBOARD
+══════════════════════════════════════════════════════════════════════════ */
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    if(document.activeElement.id==='chatMsg') sendChat();
+    if(document.activeElement.id==='nameInput'||document.activeElement.id==='roomInput') joinGame();
+  }
+  if(e.key==='Escape'){
+    ['colorOverlay','playersOverlay','chatOverlay'].forEach(closeSheet);
+    selectedCardId=pendingWildId=null; renderHand();
+  }
+});
+</script>
+</body>
+</html>
